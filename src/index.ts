@@ -63,7 +63,7 @@ function findProcesses(searchOut: string): number[] {
       let pid: string | undefined;
       if (isWin) {
         const parts = line.split(/\s+/i);
-        if (parts.length === 10 && parts[8].startsWith("query-engine-")) {
+        if (parts.length === 10) {
           pid = parts[6];
         } else {
           console.warn("didn't find prisma process id", parts);
