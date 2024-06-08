@@ -1,10 +1,29 @@
-import { Plugin } from "vite";
+import { ModuleGraph, ModuleNode, Plugin, parseAst } from "vite";
 import { exec } from "node:child_process";
 import { kill } from "node:process";
 
-export default function prismaHmrPlugin(generator?: string): Plugin {
+export default function prismaHmrPlugin(
+  generator?: string,
+  refresh?: boolean
+): Plugin {
+  const dependents = new Set<string>();
   return {
     name: "prisma-hmr-plugin",
+
+    ...(refresh && {
+      transform(code, id) {
+        if (dependents.has(id)) return;
+
+        const program = parseAst(code);
+        const hasImport = program.body.some(
+          node =>
+            node.type === "ImportDeclaration" &&
+            node.source.value === "@prisma/client"
+        );
+
+        if (hasImport) dependents.add(id);
+      },
+    }),
 
     async handleHotUpdate(ctx) {
       if (ctx.file.endsWith("prisma/schema.prisma")) {
@@ -12,12 +31,24 @@ export default function prismaHmrPlugin(generator?: string): Plugin {
 
         await generatePrismaClient(generator);
 
-        return [];
+        return mapIdsToModules(ctx.server.moduleGraph, dependents);
       }
 
       return undefined;
     },
   };
+}
+
+function mapIdsToModules(
+  moduleGraph: ModuleGraph,
+  ids: Set<string>
+): ModuleNode[] {
+  const modules: ModuleNode[] = [];
+  for (const id of ids.values()) {
+    const module = moduleGraph.getModuleById(id);
+    if (module) modules.push(module);
+  }
+  return modules;
 }
 
 async function generatePrismaClient(generator?: string) {

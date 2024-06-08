@@ -27,19 +27,16 @@ import { defineConfig } from "vite";
 import prismaHmrPlugin from "vite-plugin-prisma-hmr";
 
 export default defineConfig({
-  plugins: [
-    prismaHmrPlugin("binary"), // Optional: specify your Prisma binary generator
-  ],
+  plugins: [prismaHmrPlugin("binary", true)],
 });
 ```
 
 ## Configuration
 
-The plugin accepts a single optional configuration parameter:
+The plugin accepts the following optional configuration parameters:
 
-- `generator`: Name of generator that has engineType = 'binary'
-
-It can be omitted in case it's the only generator in schema. In case you're using library mode for production you have to specify the right generator here.
+- `generator`: Name of the generator that has `engineType = 'binary'`. It can be omitted if it's the only generator in the schema.
+- `refresh`: Boolean flag to enable invalidation of files that import `@prisma/client`. Default is `false`.
 
 ## Requirements
 
@@ -64,10 +61,15 @@ generator binary {
 1. The plugin listens for changes to the `prisma/schema.prisma` file.
 2. When a change is detected, it kills any running Prisma binaries.
 3. It regenerates the Prisma client using the specified binary generator.
+4. If `refresh` is enabled, it invalidates all of the files that import `@prisma/client` package.
+
+### Refresh
+
+Usually refresh isn't required but for one specific use case in [typia](https://typia.io/docs/utilization/prisma/) you need it to be able to transform the code on changes in Comment Tags.
 
 ## Additional steps
 
-Update `package.json` to regenerate the right client on build / start of dev server
+Update `package.json` to regenerate the right client on build / start of dev server.
 
 ```json
 {
@@ -76,4 +78,19 @@ Update `package.json` to regenerate the right client on build / start of dev ser
   "generate:lib": "prisma generate --generator library",
   "generate:bin": "prisma generate --generator binary"
 }
+```
+
+Disable typia cache because it uses source and id as key and neither change when prisma schema is changed.
+
+```js
+export default defineConfig({
+  plugins: [
+    UnpluginTypia({
+      cache: {
+        enable: false,
+      },
+    }),
+    prismaHmrPlugin("binary", true),
+  ],
+});
 ```
